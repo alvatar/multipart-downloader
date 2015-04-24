@@ -1,4 +1,6 @@
 language: go
 
+install: make test
+
 go:
   - tip
