@@ -4,3 +4,6 @@ install: make test
 
 go:
   - tip
+
+notifications:
+  email: false
