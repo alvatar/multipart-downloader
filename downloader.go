@@ -3,10 +3,8 @@ package multipartdownloader
 import (
 	"errors"
 	"fmt"
-	//"io/ioutil"
 	"log"
 	"net/http"
-	"sync"
 	"strconv"
 	"time"
 )
@@ -15,6 +13,7 @@ import (
 type URLInfo struct {
 	url string
 	fileLength int64
+	etag string
 	connSuccess bool
 	statusCode int
 }
@@ -23,8 +22,9 @@ type URLInfo struct {
 type MultiDownloader struct {
 	urls []string            // A list of all sources for the file
 	nConns uint              // The number of max concurrent connections to use
-	fileLength int64         // The size of the file. It could be larger than 4GB.
 	timeout time.Duration    // Timeout for all connections
+	fileLength int64         // The size of the file. It could be larger than 4GB.
+	etag string              // The etag (if available) of the file
 }
 
 func NewMultiDownloader(urls []string, nConns uint, timeout time.Duration) *MultiDownloader {
@@ -37,7 +37,6 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		return errors.New("No URLs provided")
 	}
 
-	var wg sync.WaitGroup
 	results := make(chan URLInfo)
 	//defer close(results)
 
@@ -53,6 +52,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		}
 		defer resp.Body.Close()
 		flen, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 0, 64)
+		etag := resp.Header.Get("Etag")
 		if err != nil {
 			log.Println("Error reading Content-Length from HTTP header")
 			flen = 0
@@ -60,12 +60,11 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		results <- URLInfo{
 			url: url,
 			fileLength: flen,
+			etag: etag,
 			connSuccess: true,
 			statusCode: resp.StatusCode,
 		}
-		wg.Done()
 	}
-	wg.Add(len(dldr.urls))
 	for _, url := range dldr.urls {
 		go getHead(url)
 	}
@@ -80,20 +79,20 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		}
 	}
 
-	// Wait for all processes
-	// XXX This probably isn't necessary as they were blocked by the channel
-	wg.Wait()
-
-	// Check that all sources agree on file length
+	// Check that all sources agree on file length and Etag
+	// Empty Etags are also accepted
 	commonFileLength := resArray[0].fileLength
+	commonEtag := resArray[0].etag
 	for _, r := range resArray[1:] {
-		if r.fileLength != commonFileLength {
+		if r.fileLength != commonFileLength || (len(r.etag) != 0 && r.etag != commonEtag) {
 			return errors.New("URLs must point to the same file")
 		}
 	}
 	dldr.fileLength = commonFileLength
+	dldr.etag = commonEtag
 
 	LogVerbose("File length: ", dldr.fileLength)
+	LogVerbose("Etag: ", dldr.etag)
 
 	return
 }
