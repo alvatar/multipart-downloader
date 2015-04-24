@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -95,4 +96,9 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	LogVerbose("Etag: ", dldr.etag)
 
 	return
+}
+
+// Prepare the file used for writing the blocks of data
+func (dldf *MultiDownloader) SetupFile() (fileInfo os.FileInfo, err error) {
+	return nil, errors.New("SetupFile() TODO")
 }

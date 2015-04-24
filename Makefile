@@ -5,7 +5,7 @@ all:
 	go build cmd/godl.go
 
 test: all
-	go test || true
+	go test
 	go test ./cmd
 
 clean:

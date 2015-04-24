@@ -17,6 +17,13 @@ var (
 	verbose  = flag.Bool("v", false, "Verbose output")
 )
 
+func exitOnError(err error) {
+	if err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
+}
+
 func main() {
 	flag.Parse()
 	log.SetPrefix("godl: ")
@@ -31,10 +38,9 @@ func main() {
 
 	// Gather info from all sources
 	err := dldr.GatherInfo()
-	if err != nil {
-		log.Fatal(err)
-		os.Exit(1)
-	}
+	exitOnError(err)
 
-	// ...
+	// Prepare the file to write individual blocks on
+	//_, err = dldr.SetupFile()
+	//exitOnError(err)
 }
