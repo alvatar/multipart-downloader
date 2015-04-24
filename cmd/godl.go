@@ -41,6 +41,6 @@ func main() {
 	exitOnError(err)
 
 	// Prepare the file to write individual blocks on
-	//_, err = dldr.SetupFile()
-	//exitOnError(err)
+	_, err = dldr.SetupFile("")
+	exitOnError(err)
 }

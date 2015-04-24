@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -25,6 +26,7 @@ type MultiDownloader struct {
 	nConns uint              // The number of max concurrent connections to use
 	timeout time.Duration    // Timeout for all connections
 	fileLength int64         // The size of the file. It could be larger than 4GB.
+	fileName string          // The output filename
 	etag string              // The etag (if available) of the file
 }
 
@@ -91,6 +93,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	}
 	dldr.fileLength = commonFileLength
 	dldr.etag = commonEtag
+	dldr.fileName = URLtoFileName(resArray[0].url)
 
 	LogVerbose("File length: ", dldr.fileLength)
 	LogVerbose("Etag: ", dldr.etag)
@@ -99,6 +102,28 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 }
 
 // Prepare the file used for writing the blocks of data
-func (dldf *MultiDownloader) SetupFile() (fileInfo os.FileInfo, err error) {
-	return nil, errors.New("SetupFile() TODO")
+func (dldr *MultiDownloader) SetupFile(fileName string) (os.FileInfo, error) {
+	var file *os.File
+	var err error
+	if fileName == "" {
+		file, err = os.Create(dldr.fileName)
+	} else {
+		file, err = os.Create(fileName)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	err = file.Truncate(dldr.fileLength)
+	fileInfo, err := file.Stat()
+	return fileInfo, err
+}
+
+func URLtoFileName(urlStr string) string {
+	url, err := url.Parse(urlStr)
+	if err != nil {
+		return "downloaded-file"
+	}
+	log.Println(url.Path)
+	return "fileTest"
 }

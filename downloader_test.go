@@ -33,18 +33,23 @@ func TestGatherInfo (t *testing.T) {
 }
 
 func TestSetupfile (t *testing.T) {
-	t.SkipNow()
 	// Gather remote sources info
 	urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
 	dldr := NewMultiDownloader(urls, 1, time.Duration(5000) * time.Millisecond)
 	err := dldr.GatherInfo()
 	failOnError(t, err)
 
-	localFileInfo, err := dldr.SetupFile()
+	// Create tmp file with custom name
+	testFileName := "___testFile___"
+	localFileInfo, err := dldr.SetupFile(testFileName)
 	failOnError(t, err)
 	if localFileInfo.Size() != dldr.fileLength {
 		t.Error("Downloaded and created local file sizes do not match")
 	}
+
+	// Remove the tmp file
+	err = os.Remove(testFileName)
+	failOnError(t, err)
 }
 
 func Test1Source (t *testing.T) {
