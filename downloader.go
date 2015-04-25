@@ -3,13 +3,19 @@ package multipartdownloader
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"strconv"
+	"sync"
 	"time"
+)
+
+const (
+	tmpFileSuffix = ".part"
 )
 
 // Info gathered from different sources
@@ -103,9 +109,11 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	dldr.fileLength = commonFileLength
 	dldr.etag = commonEtag
 	dldr.filename = urlToFilename(resArray[0].url)
-	dldr.partFilename = dldr.filename + ".part"
+	dldr.partFilename = dldr.filename + tmpFileSuffix
 
 	LogVerbose("File length: ", dldr.fileLength)
+	LogVerbose("File name: ", dldr.filename)
+	LogVerbose("Parts file name: ", dldr.partFilename)
 	LogVerbose("Etag: ", dldr.etag)
 
 	return
@@ -113,13 +121,12 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 
 // Prepare the file used for writing the blocks of data
 func (dldr *MultiDownloader) SetupFile(filename string) (os.FileInfo, error) {
-	var file *os.File
-	var err error
 	if filename != "" {
 		dldr.filename = filename
-		dldr.partFilename = filename + ".part"
+		dldr.partFilename = filename + tmpFileSuffix
 	}
-	file, err = os.Create(dldr.filename)
+
+	file, err := os.Create(dldr.partFilename)
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +161,61 @@ func (dldr *MultiDownloader) buildChunks() {
 
 // Perform the concurrent download
 func (dldr *MultiDownloader) Download() (err error) {
-	/*
+	// Build the chunks table, necessary for constructing requests
 	dldr.buildChunks()
-	downloadChunk := func(begin uint64, end uint64) {
+
+	// Parallel download, wait for all to return
+	var wg sync.WaitGroup
+	downloadChunk := func(f *os.File, i int) {
+		defer wg.Done()
+		client := &http.Client{}
+		// Select URL in a Round-Robin fashion
+		selectedUrl := dldr.urls[i%len(dldr.urls)]
+
+		// Send per-range requests
+		req, err := http.NewRequest("GET", selectedUrl, nil)
+		if err != nil {
+			panic (err)
+		}
+		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", dldr.chunks[i].begin, dldr.chunks[i].end))
+		resp, err := client.Do(req)
+		if err != nil {
+			// TODO: should signal failure
+			return
+		}
+		defer resp.Body.Close()
+
+		// Read response and process it in chunks
+		buf := make([]byte, 1<<12)
+		cursor := dldr.chunks[i].begin
+		for {
+			n, err := io.ReadFull(resp.Body, buf)
+			if err == io.EOF {
+				// TODO: should signal success
+				return
+			}
+			// According to doc: "Clients of WriteAt can execute parallel WriteAt calls on the
+			// same destination if the ranges do not overlap."
+			_, errWr := f.WriteAt(buf[:n], cursor)
+			if errWr != nil {
+				// TODO: should signal this failure
+				log.Fatal(errWr)
+				return
+			}
+			cursor += int64(n)
+		}
 	}
+	wg.Add(dldr.nConns)
+
+	file, err := os.OpenFile(dldr.partFilename, os.O_WRONLY, 0666)
+	if err != nil {
+		return
+	}
+
 	for i := 0; i < dldr.nConns; i++ {
+		go downloadChunk(file, i)
 	}
-        */
+	wg.Wait()
 	return
 }
 

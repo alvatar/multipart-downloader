@@ -1,7 +1,9 @@
 package multipartdownloader
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -48,7 +50,7 @@ func TestSetupFile (t *testing.T) {
 	failOnError(t, err)
 	// Remove the tmp file
 	defer func() {
-		err = os.Remove(testFileName)
+		err = os.Remove(dldr.partFilename)
 		failOnError(t, err)
 	}()
 	if localFileInfo.Size() != dldr.fileLength {
@@ -104,16 +106,36 @@ func TestBuildChunks (t *testing.T) {
 
 // MultiDownloader.Download() tests
 func Test1Source (t *testing.T) {
-	t.SkipNow()
-	nConns := []uint{1,2,5,10}
+	nConns := []int{5}//{1, 2, 5, 10}
 	for _, n := range nConns {
-		t.Error(fmt.Sprintf("Failed downloading with a single source and %d connections", n))
+		// Gather remote sources info
+		urls := []string{"http://latel.upf.edu/traductica/scp/quijote/quijote.txt"}
+		//urls := []string{"https://raw.githubusercontent.com/fourthbit/spheres/master/ssrunfile.scm"}
+		dldr := NewMultiDownloader(urls, n, time.Duration(5000) * time.Millisecond)
+		err := dldr.GatherInfo()
+		failOnError(t, err)
+
+		_, err = dldr.SetupFile("")
+		failOnError(t, err)
+
+		err = dldr.Download()
+		failOnError(t, err)
+
+		// Load everything into memory. Not efficient, but OK for testing
+		f1, err := ioutil.ReadFile("test/quijote.txt")
+		failOnError(t, err)
+		f2, err := ioutil.ReadFile("quijote.txt.part")
+		failOnError(t, err)
+
+		if !bytes.Equal(f1, f2) {
+			t.Fail()
+		}
 	}
 }
 
 func Test2Sources (t *testing.T) {
 	t.SkipNow()
-	nConns := []uint{1, 2, 5, 30}
+	nConns := []int{1, 2, 5, 30}
 	for _, n := range nConns {
 		t.Error(fmt.Sprintf("Failed downloading with 2 sources and %d connections", n))
 	}
@@ -121,7 +143,7 @@ func Test2Sources (t *testing.T) {
 
 func Test3Sources (t *testing.T) {
 	t.SkipNow()
-	nConns := []uint{1, 2, 3, 5, 25, 26}
+	nConns := []int{1, 2, 3, 5, 25, 26}
 	for _, n := range nConns {
 		t.Error(fmt.Sprintf("Failed downloading with 3 sources and %d connections", n))
 	}
