@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -14,6 +15,7 @@ func failOnError (t *testing.T, err error) {
 	}
 }
 
+// MultiDownloader.GatherInfo() test
 // NOTE: this test will fail if the file LICENSE diverges from the repository
 func TestGatherInfo (t *testing.T) {
 	// Gather remote sources info
@@ -32,7 +34,8 @@ func TestGatherInfo (t *testing.T) {
 	}
 }
 
-func TestSetupfile (t *testing.T) {
+// MultiDownloader.SetupFile() test
+func TestSetupFile (t *testing.T) {
 	// Gather remote sources info
 	urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
 	dldr := NewMultiDownloader(urls, 1, time.Duration(5000) * time.Millisecond)
@@ -75,10 +78,31 @@ func TestUrlToFilename (t *testing.T) {
 	}
 }
 
-/*
- * Download tests
- */
+func TestBuildChunks (t *testing.T) {
+	testTable := []struct {
+		fileLength int64
+		nConns int
+		chunks []chunk
+	} {
+		{125, 1, []chunk{{0, 125},}},
+		{125, 2, []chunk{{0, 63}, {63, 125},}},
+		{125, 3, []chunk{{0, 42}, {42, 84}, {84, 125},}},
+		{125, 4, []chunk{{0, 32}, {32, 63}, {63, 94}, {94, 125},}},
+	}
+	for _, test := range testTable {
+		urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
+		dldr := NewMultiDownloader(urls, test.nConns, time.Duration(1))
+		dldr.fileLength = test.fileLength
+		dldr.buildChunks()
+		if !reflect.DeepEqual(dldr.chunks, test.chunks) {
+			log.Println("Should be:", test.chunks)
+			log.Println("Result is:", dldr.chunks)
+			t.Fail()
+		}
+	}
+}
 
+// MultiDownloader.Download() tests
 func Test1Source (t *testing.T) {
 	t.SkipNow()
 	nConns := []uint{1,2,5,10}
@@ -101,4 +125,12 @@ func Test3Sources (t *testing.T) {
 	for _, n := range nConns {
 		t.Error(fmt.Sprintf("Failed downloading with 3 sources and %d connections", n))
 	}
+}
+
+func TestCheckSHA256File (t *testing.T) {
+	t.SkipNow()
+}
+
+func TestCheckETagFile (t *testing.T) {
+	t.SkipNow()
 }

@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// Initialize download
-	dldr := md.NewMultiDownloader(flag.Args(), *nConns, time.Duration(*timeout) * time.Millisecond)
+	dldr := md.NewMultiDownloader(flag.Args(), int(*nConns), time.Duration(*timeout) * time.Millisecond)
 	md.SetVerbose(*verbose)
 
 	// Gather info from all sources

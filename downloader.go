@@ -21,17 +21,25 @@ type URLInfo struct {
 	statusCode int
 }
 
-// The file downloader
-type MultiDownloader struct {
-	urls []string            // A list of all sources for the file
-	nConns uint              // The number of max concurrent connections to use
-	timeout time.Duration    // Timeout for all connections
-	fileLength int64         // The size of the file. It could be larger than 4GB.
-	filename string          // The output filename
-	etag string              // The etag (if available) of the file
+// Chunk boundaries
+type chunk struct {
+	begin int64
+	end int64
 }
 
-func NewMultiDownloader(urls []string, nConns uint, timeout time.Duration) *MultiDownloader {
+// The file downloader
+type MultiDownloader struct {
+	urls []string            // List of all sources for the file
+	nConns int               // Number of max concurrent connections to use
+	timeout time.Duration    // Timeout for all connections
+	fileLength int64         // Size of the file. It could be larger than 4GB.
+	filename string          // Output filename
+	partFilename string      // Incomplete output filename
+	etag string              // ETag (if available) of the file
+	chunks []chunk           // A table of the chunks the file is divided into
+}
+
+func NewMultiDownloader(urls []string, nConns int, timeout time.Duration) *MultiDownloader {
 	return &MultiDownloader{urls: urls, nConns: nConns, timeout: timeout}
 }
 
@@ -42,7 +50,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	}
 
 	results := make(chan URLInfo)
-	//defer close(results)
+	defer close(results)
 
 	// Connect to all sources concurrently
 	getHead := func (url string) {
@@ -95,6 +103,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	dldr.fileLength = commonFileLength
 	dldr.etag = commonEtag
 	dldr.filename = urlToFilename(resArray[0].url)
+	dldr.partFilename = dldr.filename + ".part"
 
 	LogVerbose("File length: ", dldr.fileLength)
 	LogVerbose("Etag: ", dldr.etag)
@@ -106,19 +115,68 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 func (dldr *MultiDownloader) SetupFile(filename string) (os.FileInfo, error) {
 	var file *os.File
 	var err error
-	if filename == "" {
-		file, err = os.Create(dldr.filename)
-	} else {
-		file, err = os.Create(filename)
+	if filename != "" {
+		dldr.filename = filename
+		dldr.partFilename = filename + ".part"
 	}
+	file, err = os.Create(dldr.filename)
 	if err != nil {
 		return nil, err
 	}
 
+	// Force file size in order to write arbitrary chunks
 	err = file.Truncate(dldr.fileLength)
 	fileInfo, err := file.Stat()
 	return fileInfo, err
 }
+
+// Internal: build the chunks table, deciding boundaries
+func (dldr *MultiDownloader) buildChunks() {
+	// The algorithm takes care of possible rounding errors splitting into chunks
+	// by taking out the remainder and distributing it among the first chunks
+	n := int64(dldr.nConns)
+	remainder := dldr.fileLength % n
+	exactNumerator := dldr.fileLength - remainder
+	chunkSize := exactNumerator / n
+	dldr.chunks = make([]chunk, n)
+	boundary := int64(0)
+	nextBoundary := chunkSize
+	for i := int64(0); i < n; i++ {
+		if remainder > 0 {
+			remainder--
+			nextBoundary++
+		}
+		dldr.chunks[i] = chunk{boundary, nextBoundary}
+		boundary = nextBoundary
+		nextBoundary = nextBoundary + chunkSize
+	}
+}
+
+// Perform the concurrent download
+func (dldr *MultiDownloader) Download() (err error) {
+	/*
+	dldr.buildChunks()
+	downloadChunk := func(begin uint64, end uint64) {
+	}
+	for i := 0; i < dldr.nConns; i++ {
+	}
+        */
+	return
+}
+
+// Check SHA-256 of downloaded file
+func (dldr *MultiDownloader) CheckSHA256(sha256 string) (err error, ok bool) {
+	return
+}
+
+// Check ETag as MD5SUM
+func (dldr *MultiDownloader) CheckETag() (err error, ok bool) {
+	return
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Auxiliary functions
 
 // Get the name of the file from the URL
 func urlToFilename(urlStr string) string {
