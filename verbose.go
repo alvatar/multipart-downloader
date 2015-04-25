@@ -7,7 +7,7 @@ import (
 var verbose = false
 
 // Verbose logging utility
-func LogVerbose(e ...interface{}) {
+func logVerbose(e ...interface{}) {
 	if (verbose) {
 		log.Print(e...)
 	}

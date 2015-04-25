@@ -111,10 +111,10 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	dldr.filename = urlToFilename(resArray[0].url)
 	dldr.partFilename = dldr.filename + tmpFileSuffix
 
-	LogVerbose("File length: ", dldr.fileLength)
-	LogVerbose("File name: ", dldr.filename)
-	LogVerbose("Parts file name: ", dldr.partFilename)
-	LogVerbose("Etag: ", dldr.etag)
+	logVerbose("File length: ", dldr.fileLength)
+	logVerbose("File name: ", dldr.filename)
+	logVerbose("Parts file name: ", dldr.partFilename)
+	logVerbose("Etag: ", dldr.etag)
 
 	return
 }
