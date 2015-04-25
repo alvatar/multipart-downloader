@@ -228,10 +228,10 @@ func (dldr *MultiDownloader) CheckSHA256(sha256 string) (ok bool, err error) {
 	return
 }
 
-// Check ETag as MD5SUM
+// Check MD5SUM of downloaded file
+// If an empty string is provided, test against ETag field in the HTTP response
 // Returns ok = true if either the check was correct or no ETag is available, with
 // reason as error
-// If an MD5SUM is provided, compare with it. Otherwise, try with the ETag
 func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
 	if dldr.etag == "" && md5sum == "" {
 		return true, errors.New("HTTP response doesn't contain an MD5 ETag")
