@@ -119,12 +119,16 @@ func Test1Source (t *testing.T) {
 		failOnError(t, err)
 
 		err = dldr.Download()
+		defer func() {
+			err = os.Remove(dldr.partFilename)
+			failOnError(t, err)
+		}()
 		failOnError(t, err)
 
 		// Load everything into memory. Not efficient, but OK for testing
 		f1, err := ioutil.ReadFile("test/quijote.txt")
 		failOnError(t, err)
-		f2, err := ioutil.ReadFile("quijote.txt.part")
+		f2, err := ioutil.ReadFile(dldr.partFilename)
 		failOnError(t, err)
 
 		if !bytes.Equal(f1, f2) {
