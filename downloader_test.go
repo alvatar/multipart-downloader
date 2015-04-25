@@ -2,7 +2,6 @@ package multipartdownloader
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -104,52 +103,49 @@ func TestBuildChunks (t *testing.T) {
 	}
 }
 
+func downloadElQuijote(t *testing.T, urls []string, n int) {
+	// Gather remote sources info
+	dldr := NewMultiDownloader(urls, n, time.Duration(5000) * time.Millisecond)
+	err := dldr.GatherInfo()
+	failOnError(t, err)
+
+	_, err = dldr.SetupFile("")
+	failOnError(t, err)
+
+	err = dldr.Download()
+	defer func() {
+		err = os.Remove(dldr.partFilename)
+		failOnError(t, err)
+	}()
+	failOnError(t, err)
+
+	// Load everything into memory and compare. Not efficient, but OK for testing
+	f1, err := ioutil.ReadFile("test/quijote.txt")
+	failOnError(t, err)
+	f2, err := ioutil.ReadFile(dldr.partFilename)
+	failOnError(t, err)
+
+	if !bytes.Equal(f1, f2) {
+		t.Fail()
+	}
+}
+
 // MultiDownloader.Download() tests
 func Test1Source (t *testing.T) {
-	nConns := []int{5}//{1, 2, 5, 10}
+	nConns := []int{1, 2, 5, 10}
 	for _, n := range nConns {
-		// Gather remote sources info
-		urls := []string{"http://latel.upf.edu/traductica/scp/quijote/quijote.txt"}
-		//urls := []string{"https://raw.githubusercontent.com/fourthbit/spheres/master/ssrunfile.scm"}
-		dldr := NewMultiDownloader(urls, n, time.Duration(5000) * time.Millisecond)
-		err := dldr.GatherInfo()
-		failOnError(t, err)
-
-		_, err = dldr.SetupFile("")
-		failOnError(t, err)
-
-		err = dldr.Download()
-		defer func() {
-			err = os.Remove(dldr.partFilename)
-			failOnError(t, err)
-		}()
-		failOnError(t, err)
-
-		// Load everything into memory. Not efficient, but OK for testing
-		f1, err := ioutil.ReadFile("test/quijote.txt")
-		failOnError(t, err)
-		f2, err := ioutil.ReadFile(dldr.partFilename)
-		failOnError(t, err)
-
-		if !bytes.Equal(f1, f2) {
-			t.Fail()
-		}
+		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt"}, n)
 	}
 }
 
 func Test2Sources (t *testing.T) {
-	t.SkipNow()
-	nConns := []int{1, 2, 5, 30}
+	nConns := []int{1, 2, 7}
 	for _, n := range nConns {
-		t.Error(fmt.Sprintf("Failed downloading with 2 sources and %d connections", n))
-	}
-}
-
-func Test3Sources (t *testing.T) {
-	t.SkipNow()
-	nConns := []int{1, 2, 3, 5, 25, 26}
-	for _, n := range nConns {
-		t.Error(fmt.Sprintf("Failed downloading with 3 sources and %d connections", n))
+		downloadElQuijote(t,
+			[]string{
+				"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt",
+				"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt",
+			}, n)
 	}
 }
 
