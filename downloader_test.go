@@ -103,7 +103,7 @@ func TestBuildChunks (t *testing.T) {
 	}
 }
 
-func downloadElQuijote(t *testing.T, urls []string, n int) {
+func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDownloader {
 	// Gather remote sources info
 	dldr := NewMultiDownloader(urls, n, time.Duration(5000) * time.Millisecond)
 	err := dldr.GatherInfo()
@@ -113,11 +113,13 @@ func downloadElQuijote(t *testing.T, urls []string, n int) {
 	failOnError(t, err)
 
 	err = dldr.Download()
-	defer func() {
-		err = os.Remove(dldr.partFilename)
-		failOnError(t, err)
-	}()
 	failOnError(t, err)
+	if delete {
+		defer func() {
+			err = os.Remove(dldr.partFilename)
+			failOnError(t, err)
+		}()
+	}
 
 	// Load everything into memory and compare. Not efficient, but OK for testing
 	f1, err := ioutil.ReadFile("test/quijote.txt")
@@ -128,13 +130,14 @@ func downloadElQuijote(t *testing.T, urls []string, n int) {
 	if !bytes.Equal(f1, f2) {
 		t.Fail()
 	}
+	return dldr
 }
 
 // MultiDownloader.Download() tests
 func Test1Source (t *testing.T) {
 	nConns := []int{1, 2, 5, 10}
 	for _, n := range nConns {
-		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt"}, n)
+		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt"}, n, true)
 	}
 }
 
@@ -145,7 +148,9 @@ func Test2Sources (t *testing.T) {
 			[]string{
 				"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt",
 				"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt",
-			}, n)
+			},
+			n,
+			true)
 	}
 }
 
@@ -154,5 +159,12 @@ func TestCheckSHA256File (t *testing.T) {
 }
 
 func TestCheckETagFile (t *testing.T) {
-	t.SkipNow()
+	dldr := downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt"}, 1, false)
+	SetVerbose(true)
+	// Compare manually with a MD5SUM generated with the command-line tool
+	// Github's ETag doesn't reflect the MD5SUM
+	ok, _ := dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")
+	if !ok {
+		t.Fail()
+	}
 }
