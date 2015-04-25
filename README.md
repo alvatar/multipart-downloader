@@ -18,5 +18,6 @@ This will build _godl_. The executable has no dependencies.
         -n      Number of concurrent connections
         -S      File containing SHA-256 hash, or a SHA-256 string
         -E      Verify using Etag as MD5
+        -o      Output file
         -v      Verbose output
 

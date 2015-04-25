@@ -12,8 +12,9 @@ import (
 var (
 	nConns   = flag.Uint("n", 1, "Number of concurrent connections")
 	sha256   = flag.String("S", "", "File containing SHA-256 hash, or a SHA-256 string")
-	useEtag  = flag.Bool("E", false, "Verify using Etag as MD5")
+	useEtag  = flag.Bool("E", false, "Verify using ETag as MD5")
 	timeout  = flag.Uint("t", 5000, "Timeout for all connections in milliseconds")
+	output   = flag.String("o", "", "Output file")
 	verbose  = flag.Bool("v", false, "Verbose output")
 )
 
@@ -41,6 +42,6 @@ func main() {
 	exitOnError(err)
 
 	// Prepare the file to write individual blocks on
-	_, err = dldr.SetupFile("")
+	_, err = dldr.SetupFile(*output)
 	exitOnError(err)
 }

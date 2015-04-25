@@ -14,7 +14,7 @@ func failOnError (t *testing.T, err error) {
 	}
 }
 
-// NOTE: this test will fail if the file LICENSE is modified
+// NOTE: this test will fail if the file LICENSE diverges from the repository
 func TestGatherInfo (t *testing.T) {
 	// Gather remote sources info
 	urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
@@ -43,14 +43,41 @@ func TestSetupfile (t *testing.T) {
 	testFileName := "___testFile___"
 	localFileInfo, err := dldr.SetupFile(testFileName)
 	failOnError(t, err)
+	// Remove the tmp file
+	defer func() {
+		err = os.Remove(testFileName)
+		failOnError(t, err)
+	}()
 	if localFileInfo.Size() != dldr.fileLength {
 		t.Error("Downloaded and created local file sizes do not match")
 	}
-
-	// Remove the tmp file
-	err = os.Remove(testFileName)
-	failOnError(t, err)
 }
+
+func TestUrlToFilename (t *testing.T) {
+	testTable := []struct {
+		url string
+		filename string
+	} {
+		{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE",
+			"LICENSE"},
+		{"https://kernel.org/pub/linux/kernel/v4.x/linux-4.0.tar.xz",
+			"linux-4.0.tar.xz"},
+		{"https://kernel.org/pub/linux/kernel/v4.x/linux-4.0.tar.xz#frag-test",
+			"linux-4.0.tar.xz"},
+		{"https://kernel.org/pub/linux/kernel/v4.x/linux-4.0.tar.xz?type=animal&name=narwhal#nose",
+			"linux-4.0.tar.xz"},
+	}
+
+	for _, test := range testTable {
+		if urlToFilename(test.url) != test.filename {
+			t.Fail()
+		}
+	}
+}
+
+/*
+ * Download tests
+ */
 
 func Test1Source (t *testing.T) {
 	t.SkipNow()
