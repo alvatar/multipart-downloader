@@ -2,7 +2,8 @@
 
 Download a file with multiple connections and multiple sources simultaneously.
 
-[![Build Status](https://travis-ci.org/alvatar/multipart-downloader.svg?branch=master)](https://travis-ci.org/alvatar/multipart-downloader)
+[![Build Status](https://travis-ci.org/alvatar/multipart-downloader.svg?branch=master)](https://travis-ci.org/alvatar/multipart-downloader) [![Doc Status](https://godoc.org/github.com/alvatar/multipart-downloader?status.png)](https://godoc.org/github.com/alvatar/multipart-downloader)
+
 
 ## Installation
 
