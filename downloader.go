@@ -2,11 +2,11 @@ package multipartdownloader
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -224,56 +224,86 @@ func (dldr *MultiDownloader) Download() (err error) {
 }
 
 // Check SHA-256 of downloaded file
-func (dldr *MultiDownloader) CheckSHA256(sha256 string) (ok bool, err error) {
-	return
-}
-
-// Check MD5SUM of downloaded file
-// If an empty string is provided, test against ETag field in the HTTP response
-// Returns ok = true if either the check was correct or no ETag is available, with
-// reason as error
-func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
-	if dldr.etag == "" && md5sum == "" {
-		return true, errors.New("HTTP response doesn't contain an MD5 ETag")
-	}
-	// Use the provided md5sum if available
-	var compareMD5SUM string
-	if md5sum != "" {
-		compareMD5SUM = md5sum
-	} else {
-		compareMD5SUM = dldr.etag
-	}
-
+func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (ok bool, err error) {
 	// Open the file and get the size
 	file, err := os.Open(dldr.partFilename)
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
-	info, _ := file.Stat()
+	defer func() {
+		if err := file.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	// Compute the SHA256
+	buf := make([] byte, fileReadChunk)
+	hash := sha256.New()
+	for {
+		n, err := file.Read(buf)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := hash.Write(buf[:n]); err != nil {
+			panic(err)
+		}
+	}
+	computedSHA256bytes := hash.Sum(nil)
+
+	// Compare the SHA256
+	computedSHA256 := fmt.Sprintf("%x", computedSHA256bytes)
+
+	if computedSHA256 == sha256hash {
+		return true, nil
+	} else {
+		logVerbose("Computed SHA256 does not match: provided=", sha256hash, " computed=", computedSHA256)
+		return false, nil
+	}
+}
+
+// Check MD5SUM of downloaded file
+func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
+	// Open the file and get the size
+	file, err := os.Open(dldr.partFilename)
 	if err != nil {
 		return false, err
 	}
-	filesize := info.Size()
+	defer func() {
+		if err := file.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
-	// Compute the MD5SUM reading chunks
-	blocks := uint64(math.Ceil(float64(filesize) / float64(fileReadChunk)))
+	// Compute the MD5SUM
+	buf := make([] byte, fileReadChunk)
 	hash := md5.New()
-	for i := uint64(0); i < blocks; i++ {
-		blocksize := int(math.Min(fileReadChunk, float64(filesize-int64(i*fileReadChunk))))
-		buf := make([] byte, blocksize)
-		file.Read(buf)
-		io.WriteString(hash, string(buf))
+	for {
+		n, err := file.Read(buf)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := hash.Write(buf[:n]); err != nil {
+			panic(err)
+		}
 	}
 	computedMD5SUMbytes := hash.Sum(nil)
 
 	// Compare the MD5SUM
 	computedMD5SUM := fmt.Sprintf("%x", computedMD5SUMbytes)
-	if computedMD5SUM == compareMD5SUM {
+
+	if computedMD5SUM == md5sum {
 		return true, nil
 	} else {
-		logVerbose("Computed MD5SUM does not match: ETag/provided=", compareMD5SUM, " computed=", computedMD5SUM)
-		return false, errors.New("HTTP response doesn't contain an MD5 ETag")
+		logVerbose("Computed MD5SUM does not match: provided=", md5sum, " computed=", computedMD5SUM)
+		return false, nil
 	}
 }
 
