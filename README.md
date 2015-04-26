@@ -16,8 +16,9 @@ This will build _godl_. The executable has no dependencies.
 
     Flags:
         -n      Number of concurrent connections
-        -S      File containing SHA-256 hash, or a SHA-256 string
+        -S      A SHA-256 string
         -E      Verify using Etag as MD5
+        -t      Timeout for all connections in milliseconds (default 5000)
         -o      Output file
         -v      Verbose output
 
