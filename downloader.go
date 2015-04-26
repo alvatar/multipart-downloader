@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -183,48 +182,57 @@ func (dldr *MultiDownloader) Download() (err error) {
 	// Build the chunks table, necessary for constructing requests
 	dldr.buildChunks()
 
+	doneChunks := make(chan bool)
+	availableConns := make(chan bool, dldr.nConns)
+
 	// Parallel download, wait for all to return
-	var wg sync.WaitGroup
 	downloadChunk := func(f *os.File, i int) {
-		defer wg.Done()
-		client := &http.Client{}
-		// Select URL in a Round-Robin fashion
-		selectedUrl := dldr.urls[i%len(dldr.urls)]
-
-		// Send per-range requests
-		req, err := http.NewRequest("GET", selectedUrl, nil)
-		if err != nil {
-			panic (err)
-		}
-		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", dldr.chunks[i].begin, dldr.chunks[i].end))
-		resp, err := client.Do(req)
-		if err != nil {
-			// TODO: should signal failure
-			return
-		}
-		defer resp.Body.Close()
-
-		// Read response and process it in chunks
-		buf := make([]byte, fileWriteChunk)
-		cursor := dldr.chunks[i].begin
+		numUrls := len(dldr.urls)
 		for {
-			n, err := io.ReadFull(resp.Body, buf)
-			if err == io.EOF {
-				// TODO: should signal success
-				return
+			// Block until there are connections available (all goroutines at first)
+			<- availableConns
+
+			for try := 0; try < numUrls; try++ { // Try each URL before waiting
+				client := &http.Client{}
+				// Select URL in a Round-Robin fashion, each try is done with the next i
+				selectedUrl := dldr.urls[(i+try) % numUrls]
+
+				// Send per-range requests
+				req, err := http.NewRequest("GET", selectedUrl, nil)
+				if err != nil {
+					continue;
+				}
+				req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", dldr.chunks[i].begin, dldr.chunks[i].end))
+				resp, err := client.Do(req)
+				if err != nil {
+					continue;
+				}
+				defer resp.Body.Close()
+
+				// Read response and process it in chunks
+				buf := make([]byte, fileWriteChunk)
+				cursor := dldr.chunks[i].begin
+				for {
+					n, err := io.ReadFull(resp.Body, buf)
+					if err == io.EOF {
+						doneChunks <- true // Signal success
+						return
+					}
+					// According to doc: "Clients of WriteAt can execute parallel WriteAt calls on the
+					// same destination if the ranges do not overlap."
+					_, errWr := f.WriteAt(buf[:n], cursor)
+					if errWr != nil {
+						log.Fatal(errWr)
+						continue
+					}
+					cursor += int64(n)
+				}
+
+				// If this point would ever be reached, something went wrong
+				panic("internal error")
 			}
-			// According to doc: "Clients of WriteAt can execute parallel WriteAt calls on the
-			// same destination if the ranges do not overlap."
-			_, errWr := f.WriteAt(buf[:n], cursor)
-			if errWr != nil {
-				// TODO: should signal this failure
-				log.Fatal(errWr)
-				return
-			}
-			cursor += int64(n)
 		}
 	}
-	wg.Add(dldr.nConns)
 
 	file, err := os.OpenFile(dldr.partFilename, os.O_WRONLY, 0666)
 	if err != nil {
@@ -233,8 +241,18 @@ func (dldr *MultiDownloader) Download() (err error) {
 
 	for i := 0; i < dldr.nConns; i++ {
 		go downloadChunk(file, i)
+
+		// We start making all requested connections available
+		availableConns <- true
 	}
-	wg.Wait()
+
+	for i := 0; i < dldr.nConns; i++ {
+		// Block with each goroutine, so we keep track of the finished ones
+		<- doneChunks
+
+		// This won't block up to nConns items, but will signal all goroutines of other finished ones
+		availableConns <- true
+	}
 
 	err = os.Rename(dldr.partFilename, dldr.filename)
 	return

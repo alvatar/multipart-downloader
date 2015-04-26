@@ -33,6 +33,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *verbose {
+		log.Println("Initializing download with", *nConns, "concurrent connections")
+	}
+
 	// Initialize download
 	dldr := md.NewMultiDownloader(flag.Args(), int(*nConns), time.Duration(*timeout) * time.Millisecond)
 	md.SetVerbose(*verbose)
