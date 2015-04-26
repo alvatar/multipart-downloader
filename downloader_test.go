@@ -215,7 +215,11 @@ func TestConnectionDropLocal (t *testing.T) {
 		http.Handle("/", http.FileServer(http.Dir("./test")))
 		server := http.Server{}
 
-		server.Serve(sl)
+		go server.Serve(sl)
+
+		// Stop this listener when the signal is received
+		<- shutdown
+		sl.Stop()
 	}()
 
 	go func() {
@@ -240,16 +244,18 @@ func TestConnectionDropLocal (t *testing.T) {
 	}()
 
 	// Wait for 50 milliseconds for listeners to be ready
-	//timer := time.NewTimer(time.Millisecond * 50)
-	//<- timer.C
+	timer := time.NewTimer(time.Millisecond * 50)
+	<- timer.C
 
 	go downloadElQuijote(t, []string{
 		"http://localhost:8081/quijote.txt",
 		"http://localhost:8082/quijote2.txt",
 	}, 2, true)
 
-	// Wait for 500 milliseconds and shutdown a listener
-	//timer = time.NewTimer(time.Millisecond * 100)
-	//<- timer.C
+	// Wait to shutdown the listeners, hopefully in the middle of the transfer
+	// TODO: Are transfers shut down off non-gracefully (as we wish)
+	timer = time.NewTimer(time.Millisecond * 50)
+	<- timer.C
+	shutdown <- true
 	shutdown <- true
 }

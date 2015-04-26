@@ -184,17 +184,18 @@ func (dldr *MultiDownloader) Download() (err error) {
 	// Build the chunks table, necessary for constructing requests
 	dldr.buildChunks()
 
-	doneChunks := make(chan bool)
-	availableConns := make(chan bool, dldr.nConns)
+	done := make(chan bool)
+	failed := make(chan bool)
+	available := make(chan bool, dldr.nConns)
 
 	// Parallel download, wait for all to return
 	downloadChunk := func(f *os.File, i int) {
 		numUrls := len(dldr.urls)
 		for {
 			// Block until there are connections available (all goroutines at first)
-			<- availableConns
+			<- available
 
-			for try := 0; try < numUrls; try++ { // Try each URL before waiting
+			for try := 0; try < numUrls; try++ { // Try each URL before signaling failure
 				client := &http.Client{}
 				// Select URL in a Round-Robin fashion, each try is done with the next i
 				selectedUrl := dldr.urls[(i+try) % numUrls]
@@ -217,7 +218,7 @@ func (dldr *MultiDownloader) Download() (err error) {
 				for {
 					n, err := io.ReadFull(resp.Body, buf)
 					if err == io.EOF {
-						doneChunks <- true // Signal success
+						done <- true // Signal success
 						return
 					}
 					// According to doc: "Clients of WriteAt can execute parallel WriteAt calls on the
@@ -225,14 +226,13 @@ func (dldr *MultiDownloader) Download() (err error) {
 					_, errWr := f.WriteAt(buf[:n], cursor)
 					if errWr != nil {
 						log.Fatal(errWr)
-						continue
+						break
 					}
 					cursor += int64(n)
 				}
-
-				// If this point would ever be reached, something went wrong
-				panic("internal error")
 			}
+
+			failed <- true // Signal failure
 		}
 	}
 
@@ -245,15 +245,23 @@ func (dldr *MultiDownloader) Download() (err error) {
 		go downloadChunk(file, i)
 
 		// We start making all requested connections available
-		availableConns <- true
+		available <- true
 	}
 
-	for i := 0; i < dldr.nConns; i++ {
-		// Block with each goroutine, so we keep track of the finished ones
-		<- doneChunks
-
-		// This won't block up to nConns items, but will signal all goroutines of other finished ones
-		availableConns <- true
+	remainingChunks := dldr.nConns
+	failedCount := 0
+	for remainingChunks > 0 {
+		// Block until a goroutine either succeeded or failed
+		select {
+		case <- done:
+			remainingChunks--
+			available <- true // Does not block up to nConns items
+		case <- failed:
+			failedCount++
+			if failedCount >= dldr.nConns {
+				return errors.New("The file couldn't be downloaded from any source. Aborting.")
+			}
+		}
 	}
 
 	err = os.Rename(dldr.partFilename, dldr.filename)
