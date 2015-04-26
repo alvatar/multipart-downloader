@@ -1,6 +1,8 @@
 language: go
 
-install: make test
+install:
+  - go get github.com/hydrogen18/stoppableListener
+  - make test
 
 go:
   - tip
