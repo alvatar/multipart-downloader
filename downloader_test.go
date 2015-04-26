@@ -140,12 +140,12 @@ func TestCheckSHA256File (t *testing.T) {
 		err := os.Remove(dldr.filename)
 		failOnError(t, err)
 	}()
-	ok, err := dldr.CheckSHA256("1e9bb1b16f8810e44d6d5ede7005258518fa976719bc2ed254308e73c357cfcc")
-	if !ok {
+	err := dldr.CheckSHA256("1e9bb1b16f8810e44d6d5ede7005258518fa976719bc2ed254308e73c357cfcc")
+	if err != nil {
 		t.Error(err)
 	}
-	ok, _ = dldr.CheckSHA256("wrong-hash")
-	if ok {
+	err = dldr.CheckSHA256("wrong-hash")
+	if err == nil {
 		t.Error(err)
 	}
 }
@@ -159,12 +159,12 @@ func TestCheckMD5SUMFile (t *testing.T) {
 	}()
 	// Compare manually with a MD5SUM generated with the command-line tool
 	// Github's ETag doesn't reflect the MD5SUM
-	ok, err := dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")
-	if !ok {
+	err := dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")
+	if err != nil {
 		t.Error(err)
 	}
-	ok, _ = dldr.CheckMD5("wrong-hash")
-	if ok {
+	err = dldr.CheckMD5("wrong-hash")
+	if err == nil {
 		t.Error(err)
 	}
 }

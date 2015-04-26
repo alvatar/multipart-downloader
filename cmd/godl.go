@@ -51,9 +51,9 @@ func main() {
 
 	// Perform SHA256 check if requested
 	if *sha256 != "" {
-		ok, err := dldr.CheckSHA256(*sha256)
+		err := dldr.CheckSHA256(*sha256)
 		exitOnError(err)
-		if !ok {
+		if err != nil {
 			log.Fatal(err)
 			os.Exit(1)
 		} else if *verbose {
@@ -63,9 +63,9 @@ func main() {
 
 	// Perform MD5SUM from ETag if requested
 	if *useEtag {
-		ok, err := dldr.CheckMD5(dldr.ETag)
+		err := dldr.CheckMD5(dldr.ETag)
 		exitOnError(err)
-		if !ok {
+		if err != nil {
 			log.Fatal(err)
 			os.Exit(1)
 		} else if *verbose {

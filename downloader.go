@@ -241,11 +241,11 @@ func (dldr *MultiDownloader) Download() (err error) {
 }
 
 // Check SHA-256 of downloaded file
-func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (ok bool, err error) {
+func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (err error) {
 	// Open the file and get the size
 	file, err := os.Open(dldr.filename)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -275,17 +275,17 @@ func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (ok bool, err error)
 	computedSHA256 := fmt.Sprintf("%x", computedSHA256bytes)
 
 	if computedSHA256 != sha256hash {
-		return false, errors.New(fmt.Sprintf("Computed SHA256 does not match: provided=%s computed=%s", sha256hash, computedSHA256))
+		return errors.New(fmt.Sprintf("Computed SHA256 does not match: provided=%s computed=%s", sha256hash, computedSHA256))
 	}
-	return true, nil
+	return nil
 }
 
 // Check MD5SUM of downloaded file
-func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
+func (dldr *MultiDownloader) CheckMD5(md5sum string) (err error) {
 	// Open the file and get the size
 	file, err := os.Open(dldr.filename)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -315,9 +315,9 @@ func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
 	computedMD5SUM := fmt.Sprintf("%x", computedMD5SUMbytes)
 
 	if computedMD5SUM != md5sum {
-		return false, errors.New(fmt.Sprintf("Computed MD5SUM does not match: provided=%s computed=%s", md5sum, computedMD5SUM))
+		return errors.New(fmt.Sprintf("Computed MD5SUM does not match: provided=%s computed=%s", md5sum, computedMD5SUM))
 	}
-	return true, nil
+	return nil
 }
 
 
