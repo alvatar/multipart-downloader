@@ -2,12 +2,16 @@ package multipartdownloader
 
 import (
 	"bytes"
+	"net"
+	"net/http"
 	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/hydrogen18/stoppableListener"
 )
 
 func failOnError (t *testing.T, err error) {
@@ -130,6 +134,7 @@ func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDo
 	if !bytes.Equal(f1, f2) {
 		t.Fail()
 	}
+
 	return dldr
 }
 
@@ -169,15 +174,16 @@ func TestCheckMD5SUMFile (t *testing.T) {
 	}
 }
 
-// MultiDownloader.Download() tests
-func Test1Source (t *testing.T) {
+// Test download with 1 remote source
+func Test1SourceRemote (t *testing.T) {
 	nConns := []int{1, 2, 5, 10}
 	for _, n := range nConns {
 		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt"}, n, true)
 	}
 }
 
-func Test2Sources (t *testing.T) {
+// Test download with 2 remote sources
+func Test2SourcesRemote (t *testing.T) {
 	nConns := []int{1, 2, 7, 19}
 	for _, n := range nConns {
 		downloadElQuijote(t,
@@ -188,4 +194,62 @@ func Test2Sources (t *testing.T) {
 			n,
 			true)
 	}
+}
+
+// Test download with a connection drop from one of the sources
+// This test also triggers the server connection limit case
+func TestConnectionDropLocal (t *testing.T) {
+	shutdown := make(chan bool)
+
+	go func() {
+		originalListener, err := net.Listen("tcp", ":8081")
+		if err != nil {
+			panic(err)
+		}
+
+		sl, err := stoppableListener.New(originalListener)
+		if err != nil {
+			panic(err)
+		}
+
+		http.Handle("/", http.FileServer(http.Dir("./test")))
+		server := http.Server{}
+
+		server.Serve(sl)
+	}()
+
+	go func() {
+		originalListener, err := net.Listen("tcp", ":8082")
+		if err != nil {
+			panic(err)
+		}
+
+		sl, err := stoppableListener.New(originalListener)
+		if err != nil {
+			panic(err)
+		}
+
+		http.Handle("/quijote2", http.FileServer(http.Dir("./test")))
+		server := http.Server{}
+
+		go server.Serve(sl)
+
+		// Stop this listener when the signal is received
+		<- shutdown
+		sl.Stop()
+	}()
+
+	// Wait for 50 milliseconds for listeners to be ready
+	//timer := time.NewTimer(time.Millisecond * 50)
+	//<- timer.C
+
+	go downloadElQuijote(t, []string{
+		"http://localhost:8081/quijote.txt",
+		"http://localhost:8082/quijote2.txt",
+	}, 2, true)
+
+	// Wait for 500 milliseconds and shutdown a listener
+	//timer = time.NewTimer(time.Millisecond * 100)
+	//<- timer.C
+	shutdown <- true
 }

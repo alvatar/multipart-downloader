@@ -110,7 +110,9 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		}
 	}
 	dldr.fileLength = commonFileLength
-	dldr.ETag = commonEtag[1:len(commonEtag)-1] // Remove the surrounding ""
+	if commonEtag != "" {
+		dldr.ETag = commonEtag[1:len(commonEtag)-1] // Remove the surrounding ""
+	}
 	dldr.filename = urlToFilename(resArray[0].url)
 	dldr.partFilename = dldr.filename + tmpFileSuffix
 
