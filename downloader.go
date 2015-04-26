@@ -163,7 +163,22 @@ func (dldr *MultiDownloader) buildChunks() {
 	}
 }
 
-// Perform the concurrent download
+// Perform the multipart download
+//
+// This algorithm handles download splitting the file into n blocks. If a connection fails, it
+// will try with other sources (as different sources may have different connection limits) then,
+// if it still fails, it will wait until other process is done. Thus, nConns really means the
+// MAXIMUM allowed connections, which will be tried at first and then adjusted.
+// The alternative approach of dividing into nSize blocks and spawn threads requests from a pool
+// of tasks has been discarded to avoid the overhead of performing potentially too many HTTP
+// requests, as a result of each thread performing many requests instead of the minimum necessary.
+//
+// The designed algorithm tries to minimize the amount of successful HTTP requests.
+//
+// As a result of the approach taken, the number of concurrent connections can drop if no source
+// is available to accomodate the request. In any case, setting a reasonable limit is left to the
+// Take into consideration that some servers may ban your IP for some amount of time if you flood
+// them with too many requests.
 func (dldr *MultiDownloader) Download() (err error) {
 	// Build the chunks table, necessary for constructing requests
 	dldr.buildChunks()

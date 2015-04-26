@@ -170,7 +170,7 @@ func Test1Source (t *testing.T) {
 }
 
 func Test2Sources (t *testing.T) {
-	nConns := []int{1, 2, 7}
+	nConns := []int{1, 2, 7, 19}
 	for _, n := range nConns {
 		downloadElQuijote(t,
 			[]string{
