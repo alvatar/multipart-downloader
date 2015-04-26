@@ -45,7 +45,7 @@ type MultiDownloader struct {
 	fileLength int64         // Size of the file. It could be larger than 4GB.
 	filename string          // Output filename
 	partFilename string      // Incomplete output filename
-	etag string              // ETag (if available) of the file
+	ETag string              // ETag (if available) of the file
 	chunks []chunk           // A table of the chunks the file is divided into
 }
 
@@ -111,14 +111,14 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		}
 	}
 	dldr.fileLength = commonFileLength
-	dldr.etag = commonEtag[1:len(commonEtag)-1] // Remove the surrounding ""
+	dldr.ETag = commonEtag[1:len(commonEtag)-1] // Remove the surrounding ""
 	dldr.filename = urlToFilename(resArray[0].url)
 	dldr.partFilename = dldr.filename + tmpFileSuffix
 
-	logVerbose("File length: ", dldr.fileLength)
+	logVerbose("File length: ", dldr.fileLength, " bytes")
 	logVerbose("File name: ", dldr.filename)
 	logVerbose("Parts file name: ", dldr.partFilename)
-	logVerbose("Etag: ", dldr.etag)
+	logVerbose("Etag: ", dldr.ETag)
 
 	return
 }
@@ -235,13 +235,15 @@ func (dldr *MultiDownloader) Download() (err error) {
 		go downloadChunk(file, i)
 	}
 	wg.Wait()
+
+	err = os.Rename(dldr.partFilename, dldr.filename)
 	return
 }
 
 // Check SHA-256 of downloaded file
 func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (ok bool, err error) {
 	// Open the file and get the size
-	file, err := os.Open(dldr.partFilename)
+	file, err := os.Open(dldr.filename)
 	if err != nil {
 		return false, err
 	}
@@ -272,18 +274,16 @@ func (dldr *MultiDownloader) CheckSHA256(sha256hash string) (ok bool, err error)
 	// Compare the SHA256
 	computedSHA256 := fmt.Sprintf("%x", computedSHA256bytes)
 
-	if computedSHA256 == sha256hash {
-		return true, nil
-	} else {
-		logVerbose("Computed SHA256 does not match: provided=", sha256hash, " computed=", computedSHA256)
-		return false, nil
+	if computedSHA256 != sha256hash {
+		return false, errors.New(fmt.Sprintf("Computed SHA256 does not match: provided=%s computed=%s", sha256hash, computedSHA256))
 	}
+	return true, nil
 }
 
 // Check MD5SUM of downloaded file
 func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
 	// Open the file and get the size
-	file, err := os.Open(dldr.partFilename)
+	file, err := os.Open(dldr.filename)
 	if err != nil {
 		return false, err
 	}
@@ -314,12 +314,10 @@ func (dldr *MultiDownloader) CheckMD5(md5sum string) (ok bool, err error) {
 	// Compare the MD5SUM
 	computedMD5SUM := fmt.Sprintf("%x", computedMD5SUMbytes)
 
-	if computedMD5SUM == md5sum {
-		return true, nil
-	} else {
-		logVerbose("Computed MD5SUM does not match: provided=", md5sum, " computed=", computedMD5SUM)
-		return false, nil
+	if computedMD5SUM != md5sum {
+		return false, errors.New(fmt.Sprintf("Computed MD5SUM does not match: provided=%s computed=%s", md5sum, computedMD5SUM))
 	}
+	return true, nil
 }
 
 

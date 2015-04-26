@@ -44,4 +44,32 @@ func main() {
 	// Prepare the file to write individual blocks on
 	_, err = dldr.SetupFile(*output)
 	exitOnError(err)
+
+	// Perform download
+	err = dldr.Download()
+	exitOnError(err)
+
+	// Perform SHA256 check if requested
+	if *sha256 != "" {
+		ok, err := dldr.CheckSHA256(*sha256)
+		exitOnError(err)
+		if !ok {
+			log.Fatal(err)
+			os.Exit(1)
+		} else if *verbose {
+			log.Println("SHA-256 checked successfully")
+		}
+	}
+
+	// Perform MD5SUM from ETag if requested
+	if *useEtag {
+		ok, err := dldr.CheckMD5(dldr.ETag)
+		exitOnError(err)
+		if !ok {
+			log.Fatal(err)
+			os.Exit(1)
+		} else if *verbose {
+			log.Println("MD5SUM checked successfully")
+		}
+	}
 }

@@ -116,7 +116,7 @@ func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDo
 	failOnError(t, err)
 	if delete {
 		defer func() {
-			err = os.Remove(dldr.partFilename)
+			err = os.Remove(dldr.filename)
 			failOnError(t, err)
 		}()
 	}
@@ -124,7 +124,7 @@ func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDo
 	// Load everything into memory and compare. Not efficient, but OK for testing
 	f1, err := ioutil.ReadFile("test/quijote.txt")
 	failOnError(t, err)
-	f2, err := ioutil.ReadFile(dldr.partFilename)
+	f2, err := ioutil.ReadFile(dldr.filename)
 	failOnError(t, err)
 
 	if !bytes.Equal(f1, f2) {
@@ -137,12 +137,16 @@ func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDo
 func TestCheckSHA256File (t *testing.T) {
 	dldr := downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt"}, 1, false)
 	defer func() {
-		err := os.Remove(dldr.partFilename)
+		err := os.Remove(dldr.filename)
 		failOnError(t, err)
 	}()
-	ok, _ := dldr.CheckSHA256("1e9bb1b16f8810e44d6d5ede7005258518fa976719bc2ed254308e73c357cfcc")
+	ok, err := dldr.CheckSHA256("1e9bb1b16f8810e44d6d5ede7005258518fa976719bc2ed254308e73c357cfcc")
 	if !ok {
-		t.Fail()
+		t.Error(err)
+	}
+	ok, _ = dldr.CheckSHA256("wrong-hash")
+	if ok {
+		t.Error(err)
 	}
 }
 
@@ -150,14 +154,18 @@ func TestCheckSHA256File (t *testing.T) {
 func TestCheckMD5SUMFile (t *testing.T) {
 	dldr := downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt"}, 1, false)
 	defer func() {
-		err := os.Remove(dldr.partFilename)
+		err := os.Remove(dldr.filename)
 		failOnError(t, err)
 	}()
 	// Compare manually with a MD5SUM generated with the command-line tool
 	// Github's ETag doesn't reflect the MD5SUM
-	ok, _ := dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")
+	ok, err := dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")
 	if !ok {
-		t.Fail()
+		t.Error(err)
+	}
+	ok, _ = dldr.CheckMD5("wrong-hash")
+	if ok {
+		t.Error(err)
 	}
 }
 
@@ -165,7 +173,7 @@ func TestCheckMD5SUMFile (t *testing.T) {
 func Test1Source (t *testing.T) {
 	nConns := []int{1, 2, 5, 10}
 	for _, n := range nConns {
-		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote2.txt"}, n, true)
+		downloadElQuijote(t, []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/test/quijote.txt"}, n, true)
 	}
 }
 
