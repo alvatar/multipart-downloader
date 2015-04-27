@@ -42,7 +42,9 @@ err := dldr.GatherInfo()
 _, err = dldr.SetupFile(*output)
 
 // Perform download
-err = dldr.Download()
+err = dldr.Download(func(feedback []md.ConnectionProgress) {
+		log.Println(feedback)
+	})
 
 err = dldr.CheckSHA256("1e9bb1b16f8810e44d6d5ede7005258518fa976719bc2ed254308e73c357cfcc")
 err = dldr.CheckMD5("45bb5fc96bb4c67778d288fba98eee48")

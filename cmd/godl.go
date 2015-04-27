@@ -50,7 +50,9 @@ func main() {
 	exitOnError(err)
 
 	// Perform download
-	err = dldr.Download()
+	err = dldr.Download(func(feedback []md.ConnectionProgress) {
+		log.Println(feedback)
+	})
 	exitOnError(err)
 
 	// Perform SHA256 check if requested

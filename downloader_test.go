@@ -116,7 +116,7 @@ func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDo
 	_, err = dldr.SetupFile("")
 	failOnError(t, err)
 
-	err = dldr.Download()
+	err = dldr.Download(nil)
 	failOnError(t, err)
 	if delete {
 		defer func() {

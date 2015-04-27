@@ -36,6 +36,14 @@ type chunk struct {
 	end int64
 }
 
+// Progress feedback type
+type ConnectionProgress struct {
+	id int
+	begin int64
+	end int64
+	current int64
+}
+
 // The file downloader
 type MultiDownloader struct {
 	urls []string            // List of all sources for the file
@@ -180,13 +188,15 @@ func (dldr *MultiDownloader) buildChunks() {
 // is available to accomodate the request. In any case, setting a reasonable limit is left to the
 // Take into consideration that some servers may ban your IP for some amount of time if you flood
 // them with too many requests.
-func (dldr *MultiDownloader) Download() (err error) {
+func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) ) (err error) {
 	// Build the chunks table, necessary for constructing requests
 	dldr.buildChunks()
 
 	done := make(chan bool)
 	failed := make(chan bool)
 	available := make(chan bool, dldr.nConns)
+
+	progress := make(chan ConnectionProgress)
 
 	// Parallel download, wait for all to return
 	downloadChunk := func(f *os.File, i int) {
@@ -229,6 +239,16 @@ func (dldr *MultiDownloader) Download() (err error) {
 						break
 					}
 					cursor += int64(n)
+
+					// Send progress if feedback function is provided
+					if feedbackFunc != nil {
+						progress <- ConnectionProgress{
+							id: i,
+							begin: dldr.chunks[i].begin,
+							end: dldr.chunks[i].end,
+							current: cursor,
+						}
+					}
 				}
 			}
 
@@ -246,6 +266,22 @@ func (dldr *MultiDownloader) Download() (err error) {
 
 		// We start making all requested connections available
 		available <- true
+	}
+
+	// Handle progress feedback
+	if feedbackFunc != nil {
+		go func() {
+			progressArray := make([]ConnectionProgress, dldr.nConns)
+			complete := 0
+			for complete < dldr.nConns {
+				p := <-progress
+				progressArray[p.id] = p
+				feedbackFunc(progressArray)
+				if p.current >= p.end {
+					complete++
+				}
+			}
+		}()
 	}
 
 	remainingChunks := dldr.nConns
