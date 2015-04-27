@@ -4,10 +4,11 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 	md "github.com/alvatar/multipart-downloader"
 )
-
 
 var (
 	nConns   = flag.Uint("n", 1, "Number of concurrent connections")
@@ -33,6 +34,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Register signals
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc,
+		os.Interrupt,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		<-sigc
+		log.Fatal("Exit with incomplete download")
+		os.Exit(1)
+	}()
+
 	if *verbose {
 		log.Println("Initializing download with", *nConns, "concurrent connections")
 	}
@@ -42,7 +57,7 @@ func main() {
 	md.SetVerbose(*verbose)
 
 	// Gather info from all sources
-	err := dldr.GatherInfo()
+	chunks, err := dldr.GatherInfo()
 	exitOnError(err)
 
 	// Prepare the file to write individual blocks on
@@ -50,9 +65,15 @@ func main() {
 	exitOnError(err)
 
 	// Perform download
-	err = dldr.Download(func(feedback []md.ConnectionProgress) {
-		log.Println(feedback)
-	})
+	if *verbose {
+		// Setup bar visualization
+		v := NewProgress(chunks)
+		err = dldr.Download(func(feedback []md.ConnectionProgress) {
+			v.Update(feedback)
+		})
+	} else {
+		err = dldr.Download(nil)
+	}
 	exitOnError(err)
 
 	// Perform SHA256 check if requested

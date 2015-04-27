@@ -22,7 +22,7 @@ const (
 )
 
 // Info gathered from different sources
-type URLInfo struct {
+type urlInfo struct {
 	url string
 	fileLength int64
 	etag string
@@ -31,17 +31,17 @@ type URLInfo struct {
 }
 
 // Chunk boundaries
-type chunk struct {
-	begin int64
-	end int64
+type Chunk struct {
+	Begin int64
+	End int64
 }
 
 // Progress feedback type
 type ConnectionProgress struct {
-	id int
-	begin int64
-	end int64
-	current int64
+	Id int
+	Begin int64
+	End int64
+	Current int64
 }
 
 // The file downloader
@@ -53,7 +53,7 @@ type MultiDownloader struct {
 	filename string          // Output filename
 	partFilename string      // Incomplete output filename
 	ETag string              // ETag (if available) of the file
-	chunks []chunk           // A table of the chunks the file is divided into
+	chunks []Chunk           // A table of the chunks the file is divided into
 }
 
 func NewMultiDownloader(urls []string, nConns int, timeout time.Duration) *MultiDownloader {
@@ -61,12 +61,12 @@ func NewMultiDownloader(urls []string, nConns int, timeout time.Duration) *Multi
 }
 
 // Get the info of the file, using the HTTP HEAD request
-func (dldr *MultiDownloader) GatherInfo() (err error) {
+func (dldr *MultiDownloader) GatherInfo() (chunks []Chunk, err error) {
 	if len(dldr.urls) == 0 {
-		return errors.New("No URLs provided")
+		return nil, errors.New("No URLs provided")
 	}
 
-	results := make(chan URLInfo)
+	results := make(chan urlInfo)
 	defer close(results)
 
 	// Connect to all sources concurrently
@@ -76,7 +76,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 		}
 		resp, err := client.Head(url)
 		if err != nil {
-			results <- URLInfo{url: url, connSuccess: false, statusCode: 0}
+			results <- urlInfo{url: url, connSuccess: false, statusCode: 0}
 			return
 		}
 		defer resp.Body.Close()
@@ -86,7 +86,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 			log.Println("Error reading Content-Length from HTTP header")
 			flen = 0
 		}
-		results <- URLInfo{
+		results <- urlInfo{
 			url: url,
 			fileLength: flen,
 			etag: etag,
@@ -99,12 +99,12 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	}
 
 	// Gather the results and return if something is wrong
-	resArray := make([]URLInfo, len(dldr.urls))
+	resArray := make([]urlInfo, len(dldr.urls))
 	for i := 0; i < len(dldr.urls); i++ {
 		r := <-results
 		resArray[i] = r
 		if !r.connSuccess || r.statusCode != 200 {
-			return errors.New(fmt.Sprintf("Failed connection to URL %s", resArray[i].url))
+			return nil, errors.New(fmt.Sprintf("Failed connection to URL %s", resArray[i].url))
 		}
 	}
 
@@ -114,7 +114,7 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	commonEtag := resArray[0].etag
 	for _, r := range resArray[1:] {
 		if r.fileLength != commonFileLength || (len(r.etag) != 0 && r.etag != commonEtag) {
-			return errors.New("URLs must point to the same file")
+			return nil, errors.New("URLs must point to the same file")
 		}
 	}
 	dldr.fileLength = commonFileLength
@@ -129,7 +129,10 @@ func (dldr *MultiDownloader) GatherInfo() (err error) {
 	logVerbose("Parts file name: ", dldr.partFilename)
 	logVerbose("Etag: ", dldr.ETag)
 
-	return
+	// Build the chunks table, necessary for constructing requests
+	dldr.buildChunks()
+
+	return dldr.chunks, nil
 }
 
 // Prepare the file used for writing the blocks of data
@@ -158,7 +161,7 @@ func (dldr *MultiDownloader) buildChunks() {
 	remainder := dldr.fileLength % n
 	exactNumerator := dldr.fileLength - remainder
 	chunkSize := exactNumerator / n
-	dldr.chunks = make([]chunk, n)
+	dldr.chunks = make([]Chunk, n)
 	boundary := int64(0)
 	nextBoundary := chunkSize
 	for i := int64(0); i < n; i++ {
@@ -166,7 +169,7 @@ func (dldr *MultiDownloader) buildChunks() {
 			remainder--
 			nextBoundary++
 		}
-		dldr.chunks[i] = chunk{boundary, nextBoundary}
+		dldr.chunks[i] = Chunk{boundary, nextBoundary}
 		boundary = nextBoundary
 		nextBoundary = nextBoundary + chunkSize
 	}
@@ -189,9 +192,6 @@ func (dldr *MultiDownloader) buildChunks() {
 // Take into consideration that some servers may ban your IP for some amount of time if you flood
 // them with too many requests.
 func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) ) (err error) {
-	// Build the chunks table, necessary for constructing requests
-	dldr.buildChunks()
-
 	done := make(chan bool)
 	failed := make(chan bool)
 	available := make(chan bool, dldr.nConns)
@@ -215,7 +215,7 @@ func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) 
 				if err != nil {
 					continue;
 				}
-				req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", dldr.chunks[i].begin, dldr.chunks[i].end))
+				req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", dldr.chunks[i].Begin, dldr.chunks[i].End))
 				resp, err := client.Do(req)
 				if err != nil {
 					continue;
@@ -224,7 +224,7 @@ func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) 
 
 				// Read response and process it in chunks
 				buf := make([]byte, fileWriteChunk)
-				cursor := dldr.chunks[i].begin
+				cursor := dldr.chunks[i].Begin
 				for {
 					n, err := io.ReadFull(resp.Body, buf)
 					if err == io.EOF {
@@ -243,10 +243,10 @@ func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) 
 					// Send progress if feedback function is provided
 					if feedbackFunc != nil {
 						progress <- ConnectionProgress{
-							id: i,
-							begin: dldr.chunks[i].begin,
-							end: dldr.chunks[i].end,
-							current: cursor,
+							Id: i,
+							Begin: dldr.chunks[i].Begin,
+							End: dldr.chunks[i].End,
+							Current: cursor,
 						}
 					}
 				}
@@ -270,14 +270,22 @@ func (dldr *MultiDownloader) Download( feedbackFunc func ([]ConnectionProgress) 
 
 	// Handle progress feedback
 	if feedbackFunc != nil {
+		progressArray := make([]ConnectionProgress, dldr.nConns)
+		for i := 0; i < dldr.nConns; i++ {
+			progressArray[i] = ConnectionProgress{
+				Id: i,
+				Begin: dldr.chunks[i].Begin,
+				End: dldr.chunks[i].End,
+				Current: dldr.chunks[i].Begin,
+			}
+		}
 		go func() {
-			progressArray := make([]ConnectionProgress, dldr.nConns)
 			complete := 0
 			for complete < dldr.nConns {
 				p := <-progress
-				progressArray[p.id] = p
+				progressArray[p.Id] = p
 				feedbackFunc(progressArray)
-				if p.current >= p.end {
+				if p.Current >= p.End {
 					complete++
 				}
 			}

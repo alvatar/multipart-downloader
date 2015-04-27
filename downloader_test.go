@@ -26,7 +26,7 @@ func TestGatherInfo (t *testing.T) {
 	// Gather remote sources info
 	urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
 	dldr := NewMultiDownloader(urls, 1, time.Duration(5000) * time.Millisecond)
-	err := dldr.GatherInfo()
+	_, err := dldr.GatherInfo()
 	failOnError(t, err)
 
 	// Get the local file info and test if they match
@@ -44,7 +44,7 @@ func TestSetupFile (t *testing.T) {
 	// Gather remote sources info
 	urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
 	dldr := NewMultiDownloader(urls, 1, time.Duration(5000) * time.Millisecond)
-	err := dldr.GatherInfo()
+	_, err := dldr.GatherInfo()
 	failOnError(t, err)
 
 	// Create tmp file with custom name
@@ -87,12 +87,12 @@ func TestBuildChunks (t *testing.T) {
 	testTable := []struct {
 		fileLength int64
 		nConns int
-		chunks []chunk
+		chunks []Chunk
 	} {
-		{125, 1, []chunk{{0, 125},}},
-		{125, 2, []chunk{{0, 63}, {63, 125},}},
-		{125, 3, []chunk{{0, 42}, {42, 84}, {84, 125},}},
-		{125, 4, []chunk{{0, 32}, {32, 63}, {63, 94}, {94, 125},}},
+		{125, 1, []Chunk{{0, 125},}},
+		{125, 2, []Chunk{{0, 63}, {63, 125},}},
+		{125, 3, []Chunk{{0, 42}, {42, 84}, {84, 125},}},
+		{125, 4, []Chunk{{0, 32}, {32, 63}, {63, 94}, {94, 125},}},
 	}
 	for _, test := range testTable {
 		urls := []string{"https://raw.githubusercontent.com/alvatar/multipart-downloader/master/LICENSE"}
@@ -110,7 +110,7 @@ func TestBuildChunks (t *testing.T) {
 func downloadElQuijote(t *testing.T, urls []string, n int, delete bool) *MultiDownloader {
 	// Gather remote sources info
 	dldr := NewMultiDownloader(urls, n, time.Duration(5000) * time.Millisecond)
-	err := dldr.GatherInfo()
+	_, err := dldr.GatherInfo()
 	failOnError(t, err)
 
 	_, err = dldr.SetupFile("")

@@ -2,7 +2,7 @@
 
 all:
 	go install
-	go build cmd/godl.go
+	go build cmd/godl.go cmd/progress.go
 
 test: all
 	@set -e; \

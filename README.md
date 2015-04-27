@@ -23,7 +23,7 @@ Download a file with multiple connections and multiple sources simultaneously.
         -E      Verify using Etag as MD5
         -t      Timeout for all connections in milliseconds (default 5000)
         -o      Output file
-        -v      Verbose output
+        -v      Verbose output, show progress bars
 
 ## Usage as library
 
@@ -36,7 +36,7 @@ timeout := time.Duration(5000) * time.Millisecond
 dldr := md.NewMultiDownloader(urls, nConns, timeout)
 
 // Gather info from all sources
-err := dldr.GatherInfo()
+_, err := dldr.GatherInfo()
 
 // Prepare the file to write downloaded blocks on it
 _, err = dldr.SetupFile(*output)
