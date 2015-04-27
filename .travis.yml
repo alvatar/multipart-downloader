@@ -1,6 +1,7 @@
 language: go
 
 install:
+  - go get github.com/sethgrid/multibar
   - go get github.com/hydrogen18/stoppableListener
   - make test
 
